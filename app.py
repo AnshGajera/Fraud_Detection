@@ -1,63 +1,83 @@
-# ── app.py — Streamlit Fraud Detection App ───────────────────────────────────
-
-import streamlit as st
-import numpy as np
+from pathlib import Path
 import pickle
 
-# ── load saved model and scaler ──────────────────────────────────────────────
-model  = pickle.load(open('best_model.pkl', 'rb'))
-scaler = pickle.load(open('scaler.pkl', 'rb'))
+import numpy as np
+import streamlit as st
 
-# ── page config ──────────────────────────────────────────────────────────────
-st.set_page_config(page_title="Fraud Detection System", page_icon="🔍", layout="centered")
 
-st.title("🔍 Credit Card Fraud Detection")
-st.markdown("Enter transaction details below to check if it is **Legitimate** or **Fraudulent**.")
+BASE_DIR = Path(__file__).resolve().parent
+MODEL_PATH = BASE_DIR / "best_model.pkl"
+SCALER_PATH = BASE_DIR / "scaler.pkl"
+
+
+@st.cache_resource
+def load_artifacts():
+    with MODEL_PATH.open("rb") as model_file:
+        model = pickle.load(model_file)
+
+    with SCALER_PATH.open("rb") as scaler_file:
+        scaler = pickle.load(scaler_file)
+
+    return model, scaler
+
+
+st.set_page_config(
+    page_title="Fraud Detection System",
+    page_icon="F",
+    layout="centered",
+)
+
+try:
+    model, scaler = load_artifacts()
+except Exception as exc:
+    st.error("Model files could not be loaded. Check the deployment dependencies and saved artifacts.")
+    st.exception(exc)
+    st.stop()
+
+
+st.title("Credit Card Fraud Detection")
+st.markdown("Enter transaction details below to check if it is legitimate or fraudulent.")
 st.divider()
 
-# ── input section ─────────────────────────────────────────────────────────────
 st.subheader("Transaction Details")
 
 col1, col2 = st.columns(2)
 with col1:
     amount = st.number_input("Transaction Amount ($)", min_value=0.0, value=100.0, step=0.01)
 with col2:
-    time   = st.number_input("Time (seconds since first txn)", min_value=0.0, value=0.0, step=1.0)
+    time = st.number_input("Time (seconds since first transaction)", min_value=0.0, value=0.0, step=1.0)
 
 st.markdown("**PCA Feature Values (V1 to V28)**")
-st.caption("Default is 0.0 — adjust only if you have actual PCA values")
+st.caption("Keep the default 0.0 values unless you have real PCA-transformed inputs.")
 
-v_cols  = st.columns(4)
-v_vals  = []
+v_columns = st.columns(4)
+v_values = []
 for i in range(1, 29):
-    col_idx = (i - 1) % 4
-    with v_cols[col_idx]:
-        val = st.number_input(f"V{i}", value=0.0, format="%.4f", key=f"v{i}")
-        v_vals.append(val)
+    column_index = (i - 1) % 4
+    with v_columns[column_index]:
+        value = st.number_input(f"V{i}", value=0.0, format="%.4f", key=f"v{i}")
+        v_values.append(value)
 
 st.divider()
 
-# ── prediction ────────────────────────────────────────────────────────────────
-if st.button("🔎 Predict Transaction", use_container_width=True):
+if st.button("Predict Transaction", use_container_width=True):
+    raw_input = np.array([[time] + v_values + [amount]], dtype=float)
 
-    # build input array — order: Time, V1-V28, Amount
-    raw_input = np.array([[time] + v_vals + [amount]])
-
-    # scale Time and Amount (columns 0 and 29)
+    # Scale Time and Amount only.
     raw_input[:, [0, 29]] = scaler.transform(raw_input[:, [0, 29]])
 
-    prediction   = model.predict(raw_input)[0]
-    probability  = model.predict_proba(raw_input)[0]
+    prediction = int(model.predict(raw_input)[0])
+    probabilities = model.predict_proba(raw_input)[0]
 
-    fraud_prob   = round(float(probability[1]) * 100, 2)
-    legit_prob   = round(float(probability[0]) * 100, 2)
+    fraud_probability = round(float(probabilities[1]) * 100, 2)
+    legitimate_probability = round(float(probabilities[0]) * 100, 2)
 
     st.divider()
     if prediction == 1:
-        st.error(f"🚨 FRAUDULENT Transaction Detected")
-        st.metric("Fraud Probability",    f"{fraud_prob}%")
-        st.metric("Legitimate Probability", f"{legit_prob}%")
+        st.error("Fraudulent transaction detected")
+        st.metric("Fraud Probability", f"{fraud_probability}%")
+        st.metric("Legitimate Probability", f"{legitimate_probability}%")
     else:
-        st.success(f"✅ Legitimate Transaction")
-        st.metric("Legitimate Probability", f"{legit_prob}%")
-        st.metric("Fraud Probability",      f"{fraud_prob}%")
+        st.success("Legitimate transaction")
+        st.metric("Legitimate Probability", f"{legitimate_probability}%")
+        st.metric("Fraud Probability", f"{fraud_probability}%")
