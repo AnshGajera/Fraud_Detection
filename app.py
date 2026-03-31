@@ -173,7 +173,16 @@ st.divider()
 
 if st.button("Predict Transaction", use_container_width=True):
     raw_input = get_current_input()
-    raw_input[:, [0, 29]] = scaler.transform(raw_input[:, [0, 29]])
+    scale_input = raw_input[:, [0, 29]]
+
+    if getattr(scaler, "n_features_in_", None) == 2:
+        raw_input[:, [0, 29]] = scaler.transform(scale_input)
+    elif getattr(scaler, "n_features_in_", None) == 1:
+        raw_input[:, [0]] = scaler.transform(raw_input[:, [0]])
+        st.warning("Only the Time feature was scaled because the saved scaler expects one feature.")
+    else:
+        st.error("Saved scaler is not compatible with the app input format.")
+        st.stop()
 
     prediction = int(model.predict(raw_input)[0])
     probabilities = model.predict_proba(raw_input)[0]
