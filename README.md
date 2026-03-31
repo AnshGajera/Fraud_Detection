@@ -132,13 +132,6 @@ It also displays prediction probabilities.
 
 If ANN performance is lower than classical models, selecting Random Forest is still justified because final selection should depend on recall, ROC-AUC, and generalization.
 
-## Short Viva Explanation
-
-`SMOTE balances minority fraud samples so the model can learn fraud patterns better.`
-
-`Recall is important because missing fraudulent transactions is more dangerous than a few false alarms.`
-
-`Random Forest was selected because it handled the imbalanced numeric dataset well and gave strong fraud detection performance.`
 
 ## Deployment Note
 
